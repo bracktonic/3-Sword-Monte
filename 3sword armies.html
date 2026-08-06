@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>3 Sword: Mercenary Conflict — Army Simulation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Cinzel:wght@400;700;900&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #1a0f07;
+    color: #d4c5a9;
+    font-family: 'Cinzel', serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    top:0;left:0;right:0;bottom:0;
+    background: radial-gradient(ellipse at center, rgba(180,140,80,0.08) 0%, transparent 70%),
+                url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='60' height='60' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index:0;
+  }
+  #app { position:relative; z-index:1; max-width:1100px; margin:0 auto; padding:20px; }
+  h1 {
+    font-family: 'MedievalSharp', cursive;
+    font-size: 2.8em;
+    text-align: center;
+    color: #c9a050;
+    text-shadow: 0 0 30px rgba(200,150,60,0.5), 0 2px 4px rgba(0,0,0,0.8);
+    letter-spacing: 3px;
+    margin-bottom: 5px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #8b7355;
+    font-size: 0.9em;
+    letter-spacing: 4px;
+    margin-bottom: 25px;
+  }
+  .screen { display:none; }
+  .screen.active { display:block; }
+
+  /* Faction Select */
+  .faction-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .faction-card {
+    background: linear-gradient(135deg, #2a1a0a 0%, #1a0f05 100%);
+    border: 2px solid #3a2815;
+    border-radius: 8px;
+    padding: 18px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .faction-card:hover {
+    border-color: #c9a050;
+    box-shadow: 0 0 25px rgba(200,150,60,0.25);
+    transform: translateY(-2px);
+  }
+  .faction-card.selected {
+    border-color: #c9a050;
+    box-shadow: 0 0 35px rgba(200,150,60,0.4), inset 0 0 30px rgba(200,150,60,0.08);
+  }
+  .faction-card h3 {
+    color: #c9a050;
+    font-size: 1.3em;
+    margin-bottom: 4px;
+  }
+  .faction-card .bonus {
+    color: #8b9a6b;
+    font-size: 0.8em;
+    margin-bottom: 10px;
+    font-style: italic;
+  }
+  .faction-card .units-preview {
+    font-size: 0.75em;
+    color: #8b7355;
+    line-height: 1.5;
+  }
+  .faction-card .units-preview span {
+    display: block;
+    padding: 2px 0;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-block;
+    padding: 12px 28px;
+    background: linear-gradient(180deg, #4a3020 0%, #2a1808 100%);
+    border: 2px solid #6b4f30;
+    color: #d4c5a9;
+    font-family: 'Cinzel', serif;
+    font-size: 1em;
+    cursor: pointer;
+    letter-spacing: 2px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  .btn:hover {
+    border-color: #c9a050;
+    box-shadow: 0 0 20px rgba(200,150,60,0.3);
+    color: #c9a050;
+  }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: #3a2815;
+    box-shadow: none;
+    color: #6b5a40;
+  }
+  .btn.primary {
+    background: linear-gradient(180deg, #8b5a20 0%, #4a2808 100%);
+    border-color: #c9a050;
+    font-size: 1.1em;
+    padding: 14px 36px;
+  }
+
+  /* Battlefield */
+  .battlefield {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 10px;
+    margin: 20px 0;
+    position: relative;
+  }
+  .front-zone {
+    background: rgba(20,10,5,0.8);
+    border: 2px solid #3a2815;
+    border-radius: 6px;
+    padding: 12px;
+    min-height: 100px;
+    position: relative;
+  }
+  .front-zone.occupied-friendly { border-color: #4a6b30; }
+  .front-zone.occupied-enemy { border-color: #6b3030; }
+  .front-zone.occupied-both { border-color: #8b6b20; }
+  .front-zone .label {
+    font-size: 0.7em;
+    letter-spacing: 2px;
+    color: #6b5a40;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .front-zone .unit-card {
+    display: inline-block;
+    background: rgba(40,20,8,0.9);
+    border: 1px solid #4a3020;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 4px;
+    font-size: 0.75em;
+    min-width: 120px;
+  }
+  .front-zone .unit-card.friendly { border-left: 3px solid #4a8b30; }
+  .front-zone .unit-card.enemy { border-left: 3px solid #8b3030; }
+  .unit-card .name { color: #c9a050; font-weight: bold; }
+  .unit-card .hp-bar {
+    height: 4px;
+    background: #3a2010;
+    border-radius: 2px;
+    margin: 4px 0;
+    overflow: hidden;
+  }
+  .unit-card .hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6b3030, #8b4a30);
+    transition: width 0.5s;
+  }
+  .unit-card .type-badge {
+    font-size: 0.7em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .type-melee { background: #4a2020; color: #d47a7a; }
+  .type-ranged { background: #1a3a1a; color: #7ad47a; }
+  .type-cavalry { background: #3a2a1a; color: #d4b87a; }
+
+  /* Info panels */
+  .info-bar {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin: 15px 0;
+    flex-wrap: wrap;
+  }
+  .info-item {
+    background: rgba(20,10,5,0.9);
+    border: 1px solid #3a2815;
+    border-radius: 6px;
+    padding: 10px 18px;
+    text-align: center;
+    min-width: 100px;
+  }
+  .info-item .value {
+    font-size: 1.6em;
+    color: #c9a050;
+    font-weight: bold;
+  }
+  .info-item .label-sm {
+    font-size: 0.65em;
+    color: #6b5a40;
+    letter-spacing: 2px;
+  }
+  .morale-low .value { color: #c94040; }
+
+  /* Command panel */
+  .command-panel {
+    background: rgba(20,10,5,0.9);
+    border: 2px solid #3a2815;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 15px 0;
+  }
+  .command-panel h3 {
+    color: #c9a050;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+  }
+
+  .move-controls {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+    flex-wrap: wrap;
+  }
+  .move-btn {
+    padding: 6px 12px;
+    background: #1a0f05;
+    border: 1px solid #3a2815;
+    color: #8b7355;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    font-size: 0.7em;
+    border-radius: 3px;
+  }
+  .move-btn:hover { border-color: #c9a050; color: #c9a050; }
+  .move-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .attack-select {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+    flex-wrap: wrap;
+  }
+  .attack-btn {
+    padding: 8px 14px;
+    background: linear-gradient(180deg, #3a2010 0%, #1a0f05 100%);
+    border: 1px solid #6b3030;
+    color: #d4a090;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    font-size: 0.75em;
+    border-radius: 4px;
+  }
+  .attack-btn:hover { border-color: #c94040; }
+  .attack-btn.selected { border-color: #c94040; background: #2a1008; }
+
+  /* Log */
+  .battle-log {
+    background: rgba(10,5,0,0.9);
+    border: 1px solid #3a2815;
+    border-radius: 6px;
+    padding: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 0.75em;
+    color: #8b7355;
+    margin: 15px 0;
+  }
+  .battle-log .entry {
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(58,40,21,0.3);
+  }
+  .battle-log .entry.damage { color: #d47a7a; }
+  .battle-log .entry.heal { color: #7ad47a; }
+  .battle-log .entry.system { color: #8b9a6b; }
+
+  .result-overlay {
+    position: fixed;
+    top:0;left:0;right:0;bottom:0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .result-box {
+    background: #1a0f07;
+    border: 3px solid #c9a050;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+  }
+  .result-box h2 {
+    font-size: 2.5em;
+    color: #c9a050;
+    margin-bottom: 20px;
+  }
+  .result-box.victory h2 { color: #4a8b30; }
+  .result-box.defeat h2 { color: #8b3030; }
+
+  .deploy-hint {
+    text-align: center;
+    color: #8b7355;
+    font-size: 0.8em;
+    margin: 10px 0;
+    font-style: italic;
+  }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+  .shaking { animation: shake 0.3s ease-in-out; }
+
+  @keyframes flash-damage {
+    0% { background: rgba(200,60,40,0.5); }
+    100% { background: transparent; }
+  }
+  .flash-dmg { animation: flash-damage 0.6s ease-out; }
+</style>
+</head>
+<body>
+<div id='app'>
+  <h1>⚔ 3 SWORD ⚔</h1>
+  <div class='subtitle'>MERCENARY CONFLICT — ARMY SIMULATION</div>
+
+  <!-- FACTION SELECT -->
+  <div id='faction-screen' class='screen active'>
+    <div class='faction-grid' id='faction-grid'></div>
+    <div style='text-align:center; margin-top:20px;'>
+      <button class='btn primary' id='start-btn' disabled>DEPLOY ARMY</button>
+    </div>
+  </div>
+
+  <!-- DEPLOYMENT -->
+  <div id='deploy-screen' class='screen'>
+    <h2 style='color:#c9a050; text-align:center; letter-spacing:3px;'>DEPLOY YOUR FORCES</h2>
+    <p class='deploy-hint'>Assign each unit to a front. One front will remain undefended — choose wisely.</p>
+    <div id='deploy-grid' style='display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:20px 0;'></div>
+    <div style='text-align:center;'>
+      <button class='btn primary' id='deploy-confirm' disabled>TO BATTLE</button>
+    </div>
+  </div>
+
+  <!-- BATTLE -->
+  <div id='battle-screen' class='screen'>
+    <div class='info-bar'>
+      <div class='info-item'>
+        <div class='label-sm'>ROUND</div>
+        <div class='value' id='round-num'>1</div>
+      </div>
+    </div>
+
+    <div class='battlefield' id='battlefield'>
+      <div class='front-zone' id='front-left' style='grid-column:1; grid-row:1;'>
+        <div class='label'>⚔ Left Flank</div>
+      </div>
+      <div class='front-zone' id='front-front' style='grid-column:1 / span 2; grid-row:2;'>
+        <div class='label'>⚔ Front Line</div>
+      </div>
+      <div class='front-zone' id='front-right' style='grid-column:2; grid-row:1;'>
+        <div class='label'>⚔ Right Flank</div>
+      </div>
+      <div class='front-zone' id='front-rear' style='grid-column:1 / span 2; grid-row:3;'>
+        <div class='label'>🎯 Rear / Range Position</div>
+      </div>
+    </div>
+
+    <div class='command-panel' id='command-panel'>
+      <h3>ISSUE COMMANDS — <span id='selected-unit-name'>Select a unit</span></h3>
+      <div style='display:flex; gap:12px; flex-wrap:wrap;'>
+        <div style='flex:1; min-width:200px;'>
+          <div style='color:#8b7355; font-size:0.7em; letter-spacing:2px; margin-bottom:6px;'>ATTACK</div>
+          <div class='attack-select' id='attack-select'></div>
+        </div>
+        <div style='flex:1; min-width:180px;'>
+          <div style='color:#8b7355; font-size:0.7em; letter-spacing:2px; margin-bottom:6px;'>MOVE TO</div>
+          <div class='move-controls' id='move-controls'>
+            <button class='move-btn' data-target='front'>Front</button>
+            <button class='move-btn' data-target='left'>Left Flank</button>
+            <button class='move-btn' data-target='right'>Right Flank</button>
+            <button class='move-btn' data-target='rear'>Rear</button>
+          </div>
+        </div>
+      </div>
+      <div style='text-align:center; margin-top:14px;'>
+        <button class='btn primary' id='execute-round'>EXECUTE ROUND</button>
+      </div>
+    </div>
+
+    <div class='battle-log' id='battle-log'>
+      <div class='entry system'>The horns sound. Battle is joined.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== GAME DATA ==========
+const FACTIONS = {
+  romans: {
+    name: 'Roman Legion',
+    bonus: 'Iron Discipline: +15% melee damage',
+    bonusType: 'meleeDamage',
+    bonusValue: 0.15,
+    color: '#c94040',
+    units: [
+      { name: 'Legionary', type: 'melee', hp: 110, stanceOptions: ['strong','sneaky'], attacks: [
+        { name: 'Pilum Throw', damage: 18, ability: 'shieldBreak', range: 'adjacent', desc: 'Ignores enemy sneaky stance bonus' },
+        { name: 'Gladius Strike', damage: 22, ability: 'formation', range: 'same', desc: '+5 damage if friendly unit on adjacent front' }
+      ]},
+      { name: 'Centurion', type: 'melee', hp: 120, stanceOptions: ['strong','speed'], attacks: [
+        { name: 'Command Strike', damage: 20, ability: 'rally', range: 'same', desc: 'Restores 8 morale on hit' },
+        { name: 'Shield Bash', damage: 16, ability: 'stun', range: 'same', desc: 'Enemy loses next movement action' }
+      ]},
+      { name: 'Auxiliary Archer', type: 'ranged', hp: 85, stanceOptions: ['sneaky','speed'], attacks: [
+        { name: 'Volley', damage: 20, ability: 'aoe', range: 'any', desc: 'Hits all enemies on target front for 12 dmg each' },
+        { name: 'Precision Shot', damage: 24, ability: 'pierce', range: 'any', desc: 'Ignores 50% of enemy armor/defense' }
+      ]}
+    ]
+  },
+  mongols: {
+    name: 'Mongol Horde',
+    bonus: 'Horse Lords: +1 range band to all attacks, cavalry move instantly',
+    bonusType: 'rangeExtension',
+    bonusValue: 1,
+    color: '#c9a040',
+    units: [
+      { name: 'Horse Archer', type: 'cavalry', hp: 95, stanceOptions: ['strong','sneaky'], attacks: [
+        { name: 'Parthian Shot', damage: 20, ability: 'retreat', range: 'any', desc: 'After attacking, may immediately move to rear' },
+        { name: 'Rapid Fire', damage: 16, ability: 'doubleStrike', range: 'any', desc: 'Hits twice if RPS is a win' }
+      ]},
+      { name: 'Lancer', type: 'cavalry', hp: 105, stanceOptions: ['strong','speed'], attacks: [
+        { name: 'Couched Lance', damage: 26, ability: 'momentum', range: 'same', desc: '+8 damage if unit moved this round' },
+        { name: 'Trample', damage: 18, ability: 'moraleDmg', range: 'same', desc: 'Deals 10 bonus morale damage' }
+      ]},
+      { name: 'Mangudai', type: 'ranged', hp: 80, stanceOptions: ['sneaky','speed'], attacks: [
+        { name: 'Feigned Retreat', damage: 14, ability: 'lure', range: 'adjacent', desc: 'Enemy forced to advance; takes +6 dmg next round' },
+        { name: 'Arrow Storm', damage: 22, ability: 'suppress', range: 'any', desc: 'Enemy morale -5 regardless of hit' }
+      ]}
+    ]
+  },
+  vikings: {
+    name: 'Viking Warband',
+    bonus: 'Berserker Rage: +25% damage when morale below 50%',
+    bonusType: 'lowMoraleDamage',
+    bonusValue: 0.25,
+    color: '#4080c9',
+    units: [
+      { name: 'Berserker', type: 'melee', hp: 115, stanceOptions: ['strong','sneaky'], attacks: [
+        { name: 'Frenzied Axe', damage: 24, ability: 'selfDamage', range: 'same', desc: 'Deals 30 dmg but self-takes 8 dmg' },
+        { name: 'War Cry', damage: 14, ability: 'fear', range: 'same', desc: 'Enemy morale -12, damage halved this round' }
+      ]},
+      { name: 'Shieldmaiden', type: 'melee', hp: 100, stanceOptions: ['strong','speed'], attacks: [
+        { name: 'Shield Wall', damage: 12, ability: 'guard', range: 'same', desc: 'All friendly units on this front take 60% less dmg this round' },
+        { name: 'Spear Thrust', damage: 22, ability: 'reach', range: 'adjacent', desc: 'Can strike adjacent front from current position' }
+      ]},
+      { name: 'Skald', type: 'ranged', hp: 75, stanceOptions: ['sneaky','speed'], attacks: [
+        { name: 'Battle Hymn', damage: 10, ability: 'inspire', range: 'any', desc: 'All friendly units +8 dmg next round' },
+        { name: 'Throwing Axe', damage: 20, ability: 'bleed', range: 'adjacent', desc: 'Enemy takes 5 dmg per round for 2 rounds' }
+      ]}
+    ]
+  },
+  samurai: {
+    name: 'Samurai Clan',
+    bonus: 'Way of the Warrior: RPS ties count as half-wins (deal 75% damage instead of 50%)',
+    bonusType: 'rpsAdvantage',
+    bonusValue: 0.25,
+    color: '#c9c9c9',
+    units: [
+      { name: 'Katana Master', type: 'melee', hp: 100, stanceOptions: ['strong','sneaky'], attacks: [
+        { name: 'Iaijutsu', damage: 22, ability: 'firstStrike', range: 'same', desc: 'Always strikes first this round, before enemy counter' },
+        { name: 'Precise Cut', damage: 18, ability: 'crit', range: 'same', desc: '30% chance to deal double damage' }
+      ]},
+      { name: 'Naginata Warrior', type: 'melee', hp: 105, stanceOptions: ['strong','speed'], attacks: [
+        { name: 'Sweeping Blade', damage: 20, ability: 'wide', range: 'same', desc: 'Hits all enemies on this front for full damage' },
+        { name: 'Thrust', damage: 24, ability: 'antiCav', range: 'adjacent', desc: '+10 dmg vs cavalry units' }
+      ]},
+      { name: 'Yumi Archer', type: 'ranged', hp: 80, stanceOptions: ['sneaky','speed'], attacks: [
+        { name: 'Armor Piercer', damage: 22, ability: 'ignoreArmor', range: 'any', desc: 'Bypasses all evasive bonuses' },
+        { name: 'Flame Arrow', damage: 18, ability: 'burn', range: 'any', desc: 'Enemy takes 6 dmg per round for 3 rounds' }
+      ]}
+    ]
+  }
+};
+
+const FRONTS = ['front', 'left', 'right', 'rear'];
+const FRONT_LABELS = { front: 'Front Line', left: 'Left Flank', right: 'Right Flank', rear: 'Rear' };
+const STANCES = { strong: 'Strong', sneaky: 'Sneaky', speed: 'Speed' };
+const RPS_WINS = { strong: 'sneaky', sneaky: 'speed', speed: 'strong' };
+
+function applyDamage(unit, amount) {
+  if (!unit || !unit.alive || amount <= 0) return;
+  unit.hp -= amount;
+  unit.morale = Math.max(0, unit.morale - amount * 2);
+  if (unit.hp <= 0) {
+    unit.hp = 0;
+    unit.alive = false;
+  }
+}
+
+function canUnitAttack(unit) {
+  return unit.alive && unit.morale > 0 && unit.stunned === 0 && unit.moveCooldown === 0;
+}
+
+const MOVE_COSTS = {
+  'front-left': 1, 'front-right': 1, 'front-rear': 2,
+  'left-front': 1, 'left-right': 2, 'left-rear': 1,
+  'right-front': 1, 'right-left': 2, 'right-rear': 1,
+  'rear-front': 2, 'rear-left': 1, 'rear-right': 1
+};
+
+const STANCE_PAIRS = [
+  ['strong', 'sneaky'],
+  ['strong', 'speed'],
+  ['sneaky', 'speed']
+];
+
+function getRandomStanceOptions() {
+  const pair = STANCE_PAIRS[Math.floor(Math.random() * STANCE_PAIRS.length)];
+  return [...pair].sort(() => Math.random() - 0.5);
+}
+
+// ========== GAME STATE ==========
+let state = {
+  phase: 'faction', // faction, deploy, battle, ended
+  playerFaction: null,
+  enemyFaction: null,
+  playerUnits: [],
+  enemyUnits: [],
+  round: 1,
+  selectedUnitIdx: null,
+  commands: {}, // { unitIdx: { attackIdx, moveTo } }
+  log: [],
+  bleedEffects: [], // { target: 'player'|'enemy', unitIdx, damage, rounds }
+  burnEffects: [],
+  stunEffects: [], // { target, unitIdx, rounds }
+  inspirePlayer: 0,
+  inspireEnemy: 0,
+  guardFronts: {}, // { 'front': true } for shield wall
+  playerDamageBonus: 0,
+  enemyDamageBonus: 0
+};
+
+function getFactionBonus(army, isPlayer) {
+  const faction = isPlayer ? state.playerFaction : state.enemyFaction;
+  return FACTIONS[faction];
+}
+
+function getUnitRange(unit, isPlayer) {
+  const bonus = getFactionBonus(null, isPlayer);
+  if (bonus.bonusType === 'rangeExtension') {
+    return (unit.attacks[0].range === 'same') ? 'adjacent' : 'any';
+  }
+  return unit.attacks[0].range;
+}
+
+function canUnitReach(unit, unitFront, targetFront, isPlayer) {
+  const range = getUnitRange(unit, isPlayer);
+  if (range === 'any') return true;
+  if (range === 'same') return unitFront === targetFront;
+  if (range === 'adjacent') {
+    if (unitFront === targetFront) return true;
+    const adj = { front: ['left','right'], left: ['front','rear'], right: ['front','rear'], rear: ['left','right'] };
+    return adj[unitFront] && adj[unitFront].includes(targetFront);
+  }
+  return false;
+}
+
+// ========== RENDER ==========
+function renderFactionSelect() {
+  const grid = document.getElementById('faction-grid');
+  grid.innerHTML = '';
+  Object.entries(FACTIONS).forEach(([key, fac]) => {
+    const card = document.createElement('div');
+    card.className = 'faction-card' + (state.playerFaction === key ? ' selected' : '');
+    card.innerHTML = `
+      <h3>${fac.name}</h3>
+      <div class='bonus'>${fac.bonus}</div>
+      <div class='units-preview'>
+        ${fac.units.map(u => `<span>${u.type === 'melee' ? '⚔' : u.type === 'ranged' ? '🏹' : '🐎'} ${u.name} — HP:${u.hp}</span>`).join('')}
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      state.playerFaction = key;
+      document.getElementById('start-btn').disabled = false;
+      renderFactionSelect();
+    });
+    grid.appendChild(card);
+  });
+}
+
+function renderDeployScreen() {
+  document.getElementById('faction-screen').classList.remove('active');
+  document.getElementById('deploy-screen').classList.add('active');
+  document.getElementById('battle-screen').classList.remove('active');
+
+  const grid = document.getElementById('deploy-grid');
+  grid.innerHTML = '';
+  const fac = FACTIONS[state.playerFaction];
+  const assignments = {};
+
+  fac.units.forEach((unit, i) => {
+    const card = document.createElement('div');
+    card.style.cssText = 'background:rgba(20,10,5,0.9); border:1px solid #3a2815; border-radius:6px; padding:14px;';
+    card.innerHTML = `
+      <div style='color:#c9a050; font-weight:bold;'>${unit.name}</div>
+      <div style='color:#8b7355; font-size:0.75em;'>${unit.type.toUpperCase()} — HP: ${unit.hp}</div>
+      <div style='margin-top:8px;'>
+        ${FRONTS.map(f => `<button class='move-btn deploy-front-btn' data-unit='${i}' data-front='${f}'>${FRONT_LABELS[f]}</button>`).join(' ')}
+      </div>
+      <div style='color:#6b5a40; font-size:0.7em; margin-top:4px;' id='deploy-assign-${i}'>Unassigned</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  document.querySelectorAll('.deploy-front-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const unitIdx = parseInt(btn.dataset.unit);
+      const front = btn.dataset.front;
+      // Clear previous assignment of this front
+      Object.keys(assignments).forEach(k => { if (assignments[k] === front) delete assignments[k]; });
+      assignments[unitIdx] = front;
+      document.querySelectorAll('.deploy-front-btn').forEach(b => b.style.borderColor = '#3a2815');
+      btn.style.borderColor = '#c9a050';
+      document.getElementById(`deploy-assign-${unitIdx}`).textContent = `→ ${FRONT_LABELS[front]}`;
+      // Enable confirm if all 3 assigned
+      if (Object.keys(assignments).length === 3) {
+        document.getElementById('deploy-confirm').disabled = false;
+      }
+    });
+  });
+
+  document.getElementById('deploy-confirm').addEventListener('click', () => {
+    if (Object.keys(assignments).length < 3) return;
+    // Build player units with random stance pairs
+      state.playerUnits = FACTIONS[state.playerFaction].units.map((u, i) => ({
+      ...JSON.parse(JSON.stringify(u)),
+      stanceOptions: getRandomStanceOptions(),
+      id: i,
+      front: assignments[i],
+      hp: u.hp,
+      maxHp: u.hp,
+      morale: 100,
+      maxMorale: 100,
+      moveCooldown: 0,
+      stunned: 0,
+      alive: true
+    }));
+    // Pick random enemy faction
+    const enemyKeys = Object.keys(FACTIONS).filter(k => k !== state.playerFaction);
+    state.enemyFaction = enemyKeys[Math.floor(Math.random() * enemyKeys.length)];
+    // AI deployment
+    const efac = FACTIONS[state.enemyFaction];
+    const shuffledFronts = [...FRONTS].sort(() => Math.random() - 0.5);
+    state.enemyUnits = efac.units.map((u, i) => ({
+      ...JSON.parse(JSON.stringify(u)),
+      id: i,
+      front: shuffledFronts[i],
+      hp: u.hp,
+      maxHp: u.hp,
+      morale: 100,
+      maxMorale: 100,
+      moveCooldown: 0,
+      stunned: 0,
+      alive: true,
+      lastAttackIdx: null
+    }));
+    state.phase = 'battle';
+    state.commands = {};
+    state.selectedUnitIdx = 0;
+    document.getElementById('deploy-screen').classList.remove('active');
+    document.getElementById('battle-screen').classList.add('active');
+    renderBattlefield();
+    updateInfoBar();
+    updateCommandPanel();
+  });
+}
+
+function renderBattlefield() {
+  const bf = document.getElementById('battlefield');
+  FRONTS.forEach(front => {
+    const zone = document.getElementById('front-' + front);
+    // Clear existing unit cards
+    zone.querySelectorAll('.unit-card').forEach(el => el.remove());
+    // Add player units
+    const pUnits = state.playerUnits.filter(u => u.alive && u.front === front);
+    const eUnits = state.enemyUnits.filter(u => u.alive && u.front === front);
+    pUnits.forEach(u => {
+      const card = createUnitCard(u, true);
+      zone.appendChild(card);
+    });
+    eUnits.forEach(u => {
+      const card = createUnitCard(u, false);
+      zone.appendChild(card);
+    });
+    // Update zone class
+    zone.classList.remove('occupied-friendly', 'occupied-enemy', 'occupied-both');
+    if (pUnits.length > 0 && eUnits.length > 0) zone.classList.add('occupied-both');
+    else if (pUnits.length > 0) zone.classList.add('occupied-friendly');
+    else if (eUnits.length > 0) zone.classList.add('occupied-enemy');
+  });
+}
+
+function createUnitCard(unit, isPlayer) {
+  const card = document.createElement('div');
+  card.className = 'unit-card ' + (isPlayer ? 'friendly' : 'enemy');
+  card.dataset.unitId = unit.id;
+  card.dataset.isPlayer = isPlayer;
+  const hpPct = Math.max(0, (unit.hp / unit.maxHp) * 100);
+  const typeCls = 'type-' + unit.type;
+  card.innerHTML = `
+    <div class='name'>${unit.name}</div>
+    <div class='type-badge ${typeCls}'>${unit.type.toUpperCase()}</div>
+    <div class='hp-bar'><div class='hp-fill' style='width:${hpPct}%'></div></div>
+    <div style='font-size:0.65em; color:#8b7355;'>HP: ${Math.max(0,unit.hp)}/${unit.maxHp}</div>
+    <div style='font-size:0.65em; color:#8b7355;'>Morale: ${Math.max(0,unit.morale)}/${unit.maxMorale}</div>
+    ${unit.moveCooldown > 0 ? `<div style='font-size:0.6em; color:#c99040;'>Moving (${unit.moveCooldown} turns)</div>` : ''}
+    ${unit.stunned > 0 ? `<div style='font-size:0.6em; color:#c94040;'>Stunned (${unit.stunned} turns)</div>` : ''}
+  `;
+  if (isPlayer && unit.alive && unit.moveCooldown === 0) {
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', () => {
+      state.selectedUnitIdx = unit.id;
+      updateCommandPanel();
+      // Highlight
+      document.querySelectorAll('.unit-card.friendly').forEach(c => c.style.borderColor = '#4a3020');
+      card.style.borderColor = '#c9a050';
+    });
+  }
+  return card;
+}
+
+function updateInfoBar() {
+  document.getElementById('round-num').textContent = state.round;
+}
+
+function updateCommandPanel() {
+  const unit = state.playerUnits.find(u => u.id === state.selectedUnitIdx && u.alive);
+  if (!unit) {
+    document.getElementById('selected-unit-name').textContent = 'Select a unit';
+    document.getElementById('attack-select').innerHTML = '';
+    return;
+  }
+  document.getElementById('selected-unit-name').textContent = unit.name + ' (' + FRONT_LABELS[unit.front] + ')' + (unit.morale <= 0 ? ' — Exhausted' : '');
+  // Attack buttons
+  const atkDiv = document.getElementById('attack-select');
+  atkDiv.innerHTML = '';
+  unit.attacks.forEach((atk, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'attack-btn';
+    const actionStance = unit.stanceOptions && unit.stanceOptions[i] ? STANCES[unit.stanceOptions[i]] : 'Strong';
+    btn.textContent = `${atk.name} (${atk.damage} dmg) — ${actionStance}`;
+    btn.title = unit.morale <= 0 ? 'Unit has no morale and cannot attack.' : atk.desc;
+    btn.disabled = unit.morale <= 0;
+    if (state.commands[unit.id] && state.commands[unit.id].attackIdx === i) btn.classList.add('selected');
+    btn.addEventListener('click', () => {
+      if (unit.morale <= 0) return;
+      if (!state.commands[unit.id]) state.commands[unit.id] = { attackIdx: 0, moveTo: null };
+      state.commands[unit.id].attackIdx = i;
+      updateCommandPanel();
+    });
+    atkDiv.appendChild(btn);
+  });
+  // Move buttons
+  document.querySelectorAll('.move-btn[data-target]').forEach(b => {
+    b.disabled = unit.moveCooldown > 0 || unit.stunned > 0;
+    if (b.dataset.target === unit.front) b.style.opacity = '0.4';
+    else b.style.opacity = '1';
+  });
+}
+
+// ========== EVENT HANDLERS ==========
+document.getElementById('start-btn').addEventListener('click', () => {
+  if (!state.playerFaction) return;
+  renderDeployScreen();
+});
+
+document.querySelectorAll('.move-btn[data-target]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (state.selectedUnitIdx === null) return;
+    const unit = state.playerUnits.find(u => u.id === state.selectedUnitIdx && u.alive);
+    if (!unit || unit.moveCooldown > 0 || unit.stunned > 0) return;
+    const target = btn.dataset.target;
+    if (target === unit.front) return;
+    if (!state.commands[state.selectedUnitIdx]) {
+      state.commands[state.selectedUnitIdx] = { attackIdx: 0, moveTo: null };
+    }
+    state.commands[state.selectedUnitIdx].moveTo = target;
+    updateCommandPanel();
+    addLog(`Ordered ${unit.name} to move to ${FRONT_LABELS[target]}.`, 'system');
+  });
+});
+
+document.getElementById('execute-round').addEventListener('click', executeRound);
+
+function addLog(msg, cls = '') {
+  state.log.unshift({ msg, cls });
+  if (state.log.length > 50) state.log.pop();
+  const logDiv = document.getElementById('battle-log');
+  logDiv.innerHTML = state.log.map(e => `<div class='entry ${e.cls}'>${e.msg}</div>`).join('');
+}
+
+// ========== AI LOGIC ==========
+function aiDecide() {
+  const commands = {};
+  state.enemyUnits.forEach(unit => {
+    if (!unit.alive) return;
+    if (unit.moveCooldown > 0 || unit.stunned > 0) {
+      commands[unit.id] = { attackIdx: 0, moveTo: null };
+      return;
+    }
+    // Choose attack based on previous attack stance
+    let atkIdx;
+    if (typeof unit.lastAttackIdx === 'number' && unit.stanceOptions && unit.stanceOptions.length >= 2) {
+      const prevIdx = unit.lastAttackIdx;
+      const sameIdx = prevIdx;
+      const altIdx = prevIdx === 0 ? 1 : 0;
+      const prevStance = unit.stanceOptions[prevIdx];
+      const altStance = unit.stanceOptions[altIdx];
+      const altBeatsPrev = RPS_WINS[altStance] === prevStance;
+      atkIdx = altBeatsPrev ? (Math.random() < 0.6 ? altIdx : sameIdx) : sameIdx;
+    } else {
+      atkIdx = Math.random() < 0.6 ? 0 : 1;
+    }
+    // Maybe move? AI moves ranged to rear, melee to front
+    let moveTo = null;
+    if (unit.type === 'ranged' && unit.front !== 'rear' && Math.random() < 0.3) moveTo = 'rear';
+    else if (unit.type === 'melee' && unit.front === 'rear' && Math.random() < 0.6) {
+      moveTo = ['front', 'left', 'right'][Math.floor(Math.random() * 3)];
+    } else if (unit.type === 'cavalry' && Math.random() < 0.4) {
+      // Cavalry likes to flank
+      const opts = FRONTS.filter(f => f !== unit.front);
+      moveTo = opts[Math.floor(Math.random() * opts.length)];
+    }
+    commands[unit.id] = { attackIdx: atkIdx, moveTo };
+  });
+  return commands;
+}
+
+// ========== BATTLE RESOLUTION ==========
+function executeRound() {
+  // Ensure all alive player units have commands
+  state.playerUnits.forEach(u => {
+    if (!u.alive) return;
+    if (!state.commands[u.id]) {
+      state.commands[u.id] = { attackIdx: 0, moveTo: null };
+    }
+  });
+
+  const aiCommands = aiDecide();
+
+  // Process movement first
+  processMovement(state.playerUnits, state.commands, 'player');
+  processMovement(state.enemyUnits, aiCommands, 'enemy');
+
+  // Process bleed/burn effects
+  processDotEffects('player');
+  processDotEffects('enemy');
+
+  // Process stun countdowns
+  state.playerUnits.forEach(u => { if (u.stunned > 0) u.stunned--; });
+  state.enemyUnits.forEach(u => { if (u.stunned > 0) u.stunned--; });
+
+  // Regenerate morale per unit
+  state.playerUnits.forEach(u => { if (u.alive) u.morale = Math.min(u.maxMorale, u.morale + 10); });
+  state.enemyUnits.forEach(u => { if (u.alive) u.morale = Math.min(u.maxMorale, u.morale + 10); });
+
+  // Resolve combat on each front
+  FRONTS.forEach(front => {
+    resolveFrontCombat(front, state.commands, aiCommands);
+  });
+
+  // Apply inspire bonuses for next round
+  state.playerDamageBonus = state.inspirePlayer;
+  state.enemyDamageBonus = state.inspireEnemy;
+  state.inspirePlayer = 0;
+  state.inspireEnemy = 0;
+
+  // Clear guard fronts
+  state.guardFronts = {};
+
+  // Clear commands for next round
+  state.commands = {};
+
+  // Check victory
+  checkVictory();
+
+  // Update UI
+  state.round++;
+  renderBattlefield();
+  updateInfoBar();
+  updateCommandPanel();
+  state.selectedUnitIdx = state.playerUnits.find(u => u.alive)?.id ?? null;
+  updateCommandPanel();
+}
+
+function processMovement(units, commands, side) {
+  units.forEach(unit => {
+    if (!unit.alive) return;
+    if (unit.moveCooldown > 0) {
+      unit.moveCooldown--;
+      return;
+    }
+    if (unit.stunned > 0) return;
+    const cmd = commands[unit.id];
+    if (!cmd || !cmd.moveTo || cmd.moveTo === unit.front) return;
+    const moveKey = unit.front + '-' + cmd.moveTo;
+    const cost = MOVE_COSTS[moveKey] || 2;
+    unit.front = cmd.moveTo;
+    unit.moveCooldown = cost;
+    addLog(`${unit.name} moves to ${FRONT_LABELS[cmd.moveTo]} (${cost} turn${cost>1?'s':''} cooldown).`, 'system');
+  });
+}
+
+function processDotEffects(side) {
+  const effects = side === 'player' ? state.bleedEffects.filter(e => e.target === 'player') : state.bleedEffects.filter(e => e.target === 'enemy');
+  const burnEffects = side === 'player' ? state.burnEffects.filter(e => e.target === 'player') : state.burnEffects.filter(e => e.target === 'enemy');
+  const units = side === 'player' ? state.playerUnits : state.enemyUnits;
+  [...effects, ...burnEffects].forEach(eff => {
+    const unit = units.find(u => u.id === eff.unitIdx && u.alive);
+    if (unit) {
+      applyDamage(unit, eff.damage);
+      addLog(`${unit.name} suffers ${eff.damage} damage from ongoing effects.`, 'damage');
+      if (!unit.alive) {
+        addLog(`${unit.name} has fallen!`, 'damage');
+      }
+    }
+  });
+  state.bleedEffects = state.bleedEffects.filter(e => {
+    e.rounds--;
+    return e.rounds > 0;
+  });
+  state.burnEffects = state.burnEffects.filter(e => {
+    e.rounds--;
+    return e.rounds > 0;
+  });
+}
+
+function resolveFrontCombat(front, playerCmds, aiCmds) {
+  const pUnits = state.playerUnits.filter(u => u.alive && u.front === front && u.moveCooldown === 0 && u.stunned === 0);
+  const eUnits = state.enemyUnits.filter(u => u.alive && u.front === front && u.moveCooldown === 0 && u.stunned === 0);
+  if (pUnits.length === 0 && eUnits.length === 0) return;
+
+  // Each unit on this front fights
+  pUnits.forEach(pUnit => {
+    if (!canUnitAttack(pUnit)) return;
+    const cmd = playerCmds[pUnit.id] || { attackIdx: 0 };
+    // Find reachable enemies
+    const targets = eUnits.filter(eu => canUnitReach(pUnit, front, eu.front, true));
+    if (targets.length === 0) {
+      // Try attacking from range
+      const allEnemies = state.enemyUnits.filter(u => u.alive && canUnitReach(pUnit, front, u.front, true));
+      if (allEnemies.length === 0) return;
+      resolveAttack(pUnit, allEnemies[0], cmd, 'player', front, aiCmds[allEnemies[0].id]);
+    } else {
+      resolveAttack(pUnit, targets[0], cmd, 'player', front, aiCmds[targets[0].id]);
+    }
+  });
+
+  eUnits.forEach(eUnit => {
+    if (!canUnitAttack(eUnit)) return;
+    const cmd = aiCmds[eUnit.id] || { attackIdx: 0 };
+    const targets = pUnits.filter(pu => canUnitReach(eUnit, front, pu.front, false));
+    if (targets.length === 0) {
+      const allEnemies = state.playerUnits.filter(u => u.alive && canUnitReach(eUnit, front, u.front, false));
+      if (allEnemies.length === 0) return;
+      resolveAttack(eUnit, allEnemies[0], cmd, 'enemy', front, state.commands[allEnemies[0].id]);
+    } else {
+      resolveAttack(eUnit, targets[0], cmd, 'enemy', front, state.commands[targets[0].id]);
+    }
+  });
+}
+
+function resolveAttack(attacker, defender, cmd, side, front, defenderCmd = null) {
+  const atk = attacker.attacks[cmd.attackIdx] || attacker.attacks[0];
+  const stance = attacker.stanceOptions && attacker.stanceOptions[cmd.attackIdx] ? attacker.stanceOptions[cmd.attackIdx] : getDefaultStance(attacker);
+  const defStance = defender.stanceOptions && defender.stanceOptions[defenderCmd?.attackIdx] ? defender.stanceOptions[defenderCmd.attackIdx] : getDefaultStance(defender);
+
+  // RPS resolution
+  let result;
+  if (stance === defStance) result = 'tie';
+  else if (RPS_WINS[stance] === defStance) result = 'win';
+  else result = 'loss';
+
+  let damageMult = 0;
+  if (result === 'win') damageMult = 1.0;
+  else if (result === 'tie') {
+    // Samurai bonus
+    const bonus = side === 'player' ? FACTIONS[state.playerFaction] : FACTIONS[state.enemyFaction];
+    damageMult = (bonus.bonusType === 'rpsAdvantage') ? 0.75 : 0.5;
+  } else damageMult = 0;
+
+  let damage = Math.round(atk.damage * damageMult);
+  if (damage === 0) {
+    addLog(`${attacker.name}'s ${atk.name} fails against ${defender.name} (${STANCES[stance]} vs ${STANCES[defStance]}).`, 'system');
+    if (typeof cmd.attackIdx === 'number') attacker.lastAttackIdx = cmd.attackIdx;
+    return;
+  }
+
+  // Apply faction bonuses
+  const facBonus = side === 'player' ? FACTIONS[state.playerFaction] : FACTIONS[state.enemyFaction];
+  if (facBonus.bonusType === 'meleeDamage' && attacker.type === 'melee') damage = Math.round(damage * (1 + facBonus.bonusValue));
+  if (facBonus.bonusType === 'lowMoraleDamage' && attacker.morale < 50) {
+    damage = Math.round(damage * (1 + facBonus.bonusValue));
+  }
+
+  // Apply inspire bonus
+  const inspireBonus = side === 'player' ? state.playerDamageBonus : state.enemyDamageBonus;
+  if (inspireBonus > 0) damage += inspireBonus;
+
+  // Apply guard reduction
+  if (state.guardFronts[defender.front]) damage = Math.round(damage * 0.4);
+
+  // Apply attack abilities
+  applyAbility(attacker, defender, atk, damage, side, front);
+
+  // Deal damage
+  applyDamage(defender, damage);
+  addLog(`${attacker.name} uses ${atk.name} on ${defender.name} — ${damage} damage! (${STANCES[stance]} vs ${STANCES[defStance]}: ${result})`, 'damage');
+
+  if (!defender.alive) {
+    addLog(`${defender.name} has been slain!`, 'damage');
+  }
+  if (typeof cmd.attackIdx === 'number') attacker.lastAttackIdx = cmd.attackIdx;
+}
+
+function applyAbility(attacker, defender, atk, damage, side, front) {
+  const ability = atk.ability;
+  switch (ability) {
+    case 'shieldBreak':
+      // Already handled by ignoring sneaky stance — bonus damage
+      applyDamage(defender, 4);
+      addLog(`${atk.name} breaks through ${defender.name}'s defenses! (+4)`, 'damage');
+      break;
+    case 'formation':
+      const adjFronts = { front: ['left','right'], left: ['front','rear'], right: ['front','rear'], rear: ['left','right'] };
+      const friends = (side === 'player' ? state.playerUnits : state.enemyUnits)
+        .filter(u => u.alive && u.id !== attacker.id && adjFronts[front]?.includes(u.front));
+      if (friends.length > 0) {
+        applyDamage(defender, 5);
+        addLog(`Formation bonus! +5 damage.`, 'damage');
+      }
+      break;
+    case 'rally':
+      attacker.morale = Math.min(attacker.maxMorale, attacker.morale + 8);
+      addLog(`${attacker.name} rallies its own spirit! +8 morale.`, 'heal');
+      break;
+    case 'stun':
+      defender.stunned = 2;
+      addLog(`${defender.name} is stunned for 2 rounds!`, 'system');
+      break;
+    case 'aoe':
+      const allOnFront = (side === 'player' ? state.enemyUnits : state.playerUnits)
+        .filter(u => u.alive && u.front === defender.front && u.id !== defender.id);
+      allOnFront.forEach(u => {
+        applyDamage(u, 12);
+        addLog(`${u.name} caught in volley! -12 HP.`, 'damage');
+        if (!u.alive) { addLog(`${u.name} falls!`, 'damage'); }
+      });
+      break;
+    case 'pierce':
+      applyDamage(defender, Math.round(damage * 0.3));
+      addLog(`Piercing shot! Bonus damage.`, 'damage');
+      break;
+    case 'retreat':
+      attacker.front = 'rear';
+      attacker.moveCooldown = 0;
+      addLog(`${attacker.name} retreats to rear after attack.`, 'system');
+      break;
+    case 'doubleStrike':
+      applyDamage(defender, Math.round(atk.damage * 0.5));
+      addLog(`Rapid fire! Second strike lands.`, 'damage');
+      break;
+    case 'momentum':
+      if (attacker.moveCooldown > 0 || attacker.front !== (side === 'player' ? state.commands[attacker.id]?.moveTo : null)) {
+        applyDamage(defender, 8);
+        addLog(`Momentum carries the charge! +8 damage.`, 'damage');
+      }
+      break;
+    case 'moraleDmg':
+      defender.morale = Math.max(0, defender.morale - 10);
+      addLog(`Trample devastates ${defender.name}'s morale! -10.`, 'damage');
+      break;
+    case 'lure':
+      defender.front = front;
+      defender.moveCooldown = 0;
+      state.bleedEffects.push({ target: side === 'player' ? 'enemy' : 'player', unitIdx: defender.id, damage: 6, rounds: 1 });
+      addLog(`${defender.name} lured forward! Will take +6 damage next round.`, 'system');
+      break;
+    case 'suppress':
+      defender.morale = Math.max(0, defender.morale - 5);
+      break;
+    case 'selfDamage':
+      applyDamage(attacker, 8);
+      addLog(`${attacker.name} takes 8 self-damage from frenzy.`, 'damage');
+      break;
+    case 'fear':
+      defender.morale = Math.max(0, defender.morale - 12);
+      break;
+    case 'guard':
+      state.guardFronts[front] = true;
+      addLog(`Shield Wall raised on ${FRONT_LABELS[front]}! 60% damage reduction.`, 'system');
+      break;
+    case 'reach':
+      // Already handled by range
+      break;
+    case 'inspire':
+      if (side === 'player') state.inspirePlayer += 8;
+      else state.inspireEnemy += 8;
+      addLog(`Battle hymn inspires the army! +8 damage next round.`, 'heal');
+      break;
+    case 'bleed':
+      state.bleedEffects.push({ target: side === 'player' ? 'enemy' : 'player', unitIdx: defender.id, damage: 5, rounds: 2 });
+      addLog(`${defender.name} is bleeding! 5 damage for 2 rounds.`, 'damage');
+      break;
+    case 'firstStrike':
+      applyDamage(defender, 6);
+      addLog(`Iaijutsu strikes first! +6 damage before enemy reacts.`, 'damage');
+      break;
+    case 'crit':
+      if (Math.random() < 0.3) {
+        applyDamage(defender, Math.round(atk.damage * 0.8));
+        addLog(`Critical hit!`, 'damage');
+      }
+      break;
+    case 'wide':
+      const allFront = (side === 'player' ? state.enemyUnits : state.playerUnits)
+        .filter(u => u.alive && u.front === front && u.id !== defender.id);
+      allFront.forEach(u => {
+        applyDamage(u, Math.round(atk.damage * 0.7));
+        addLog(`${u.name} swept by wide blade!`, 'damage');
+        if (!u.alive) { }
+      });
+      break;
+    case 'antiCav':
+      if (defender.type === 'cavalry') {
+        applyDamage(defender, 10);
+        addLog(`Anti-cavalry strike! +10 damage.`, 'damage');
+      }
+      break;
+    case 'ignoreArmor':
+      applyDamage(defender, 5);
+      addLog(`Armor ignored! +5 damage.`, 'damage');
+      break;
+    case 'burn':
+      state.burnEffects.push({ target: side === 'player' ? 'enemy' : 'player', unitIdx: defender.id, damage: 6, rounds: 3 });
+      addLog(`${defender.name} is burning! 6 damage for 3 rounds.`, 'damage');
+      break;
+  }
+}
+
+function checkVictory() {
+  const playerAlive = state.playerUnits.some(u => u.alive);
+  const enemyAlive = state.enemyUnits.some(u => u.alive);
+  if (!enemyAlive) {
+    endGame('victory');
+  } else if (!playerAlive) {
+    endGame('defeat');
+  }
+}
+
+function endGame(result) {
+  state.phase = 'ended';
+  const overlay = document.createElement('div');
+  overlay.className = 'result-overlay';
+  const box = document.createElement('div');
+  box.className = 'result-box ' + result;
+  box.innerHTML = `
+    <h2>${result === 'victory' ? '🏆 VICTORY! 🏆' : '💀 DEFEAT 💀'}</h2>
+    <p style='color:#8b7355;'>
+      ${result === 'victory' ? 'The enemy army crumbles before your strategic genius. The field is yours.' : 'Your forces have been routed. The enemy holds the field.'}
+    </p>
+    <p style='color:#6b5a40; font-size:0.8em; margin-top:10px;'>Battle lasted ${state.round} rounds</p>
+    <button class='btn primary' style='margin-top:20px;' onclick='location.reload()'>WAR AGAIN</button>
+  `;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+// ========== INIT ==========
+renderFactionSelect();
+</script>
+</body>
+</html>
